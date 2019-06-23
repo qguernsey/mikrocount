@@ -17,8 +17,8 @@ import (
 type entry struct {
 	FromIP  net.IP
 	ToIP    net.IP
-	Packets uint
 	Bytes   uint
+	Packets uint
 }
 
 func getEnv(env string, def string) string {
@@ -83,13 +83,13 @@ func getData(mikrotikAddr string, dataChan chan []entry) {
 			break
 		}
 		cols := strings.Split(l, " ")
-		packets, _ := strconv.Atoi(cols[2])
-		bytes, _ := strconv.Atoi(cols[3])
+		bytes, _ := strconv.Atoi(cols[2])
+		packets, _ := strconv.Atoi(cols[3])
 		e := entry{
 			FromIP:  net.ParseIP(cols[0]),
 			ToIP:    net.ParseIP(cols[1]),
-			Packets: uint(packets),
 			Bytes:   uint(bytes),
+			Packets: uint(packets),
 		}
 		entries = append(entries, e)
 	}
@@ -122,8 +122,8 @@ func recordEntries(entries []entry, ipnet *net.IPNet, c client.Client) {
 		}
 
 		fields := map[string]interface{}{
-			"packets": e.Packets,
 			"bytes":   e.Bytes,
+			"packets": e.Packets,
 		}
 		pt, err := client.NewPoint("usage", tags, fields, time.Now())
 		if err != nil {
