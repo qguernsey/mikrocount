@@ -1,19 +1,18 @@
-# Mikrocount
 
-[![Go Report Card](https://goreportcard.com/badge/github.com/johanmeiring/mikrocount)](https://goreportcard.com/report/github.com/johanmeiring/mikrocount) [![Software License](https://img.shields.io/badge/License-MIT-orange.svg?style=flat-round)](https://github.com/johanmeiring/mikrocount/blob/master/LICENSE) [![Build Status](https://travis-ci.com/johanmeiring/mikrocount.svg?branch=master)](https://travis-ci.com/johanmeiring/mikrocount)
+# Mikrocount (atajsic fork)
 
-Mikrocount is a suite of tools that aid in visualising external network activity that goes through a Mikrotik router.  It consists of:
+## Introduction
 
-* `mikrocount`: The application hosted in this repo, which periodically fetches accounting data from the Mikrotik router and feeds it to Influxdb.
-* `influxdb`: Time-series data store.  Mikrocount stores data in a database named `mikrocount`, in a single measurement named `usage`, with a field of `bytes` and tags of `direction` (Upload or Download) and `ip`.
-* `grafana`: Awesome tool for visualising the data stored in Influxdb.
+Mikrocount is a tool written in go that pulls data from Mikrotik's accounting service, parses it, and stores it into influxdb.
 
-## Installing
+## Getting Started
+### Mikrotik router
 
-### Configuring the Mikrotik router
+Your Mikrotik router will need to have accounting with web access enabled.
 
-Your Mikrotik router will need to be configured properly in order to expose accounting data to the local network.  Run the following commands in your router's terminal:
+[Mikrotik Manual:IP/Accounting](https://wiki.mikrotik.com/wiki/Manual:IP/Accounting)
 
+Example:
 ```mikrotik
 /ip accounting
 set enabled=yes threshold=2000
@@ -21,62 +20,50 @@ set enabled=yes threshold=2000
 set accessible-via-web=yes
 ```
 
-Note:
+Notes:
 
-* If your network is very busy, you should set the threshold to a higher value.  Mikrocount queries the Mikrotik router for data every 15 seconds.
-* It is strongly recommended that access to your router from the internet over HTTP/HTTPS be blocked by the firewall.
-* The accounting feature of Mikrotik doesn't appear to work properly at all for packets that are [fasttracked](https://wiki.mikrotik.com/wiki/Manual:IP/Fasttrack).  If you want accurate results from this tool, I recommend you disable the fasttrack feature.
+* `threshold`: 	maximum number of IP pairs in the accounting table (maximal value is 8192).
+* The accounting feature of Mikrotik doesn't appear to work properly at all for packets that are [fasttracked](https://wiki.mikrotik.com/wiki/Manual:IP/Fasttrack).  If you want accurate results from this tool, disable fasttrack.
 
-### Running the Mikrocount suite
+### Usage
 
-Requirements:
+#### docker
 
-* A computer capable of running Docker, with Docker and docker-compose already installed.
-* The computer should preferably be running 24/7.
+```
+docker create \
+  --name=mikrocount
+  -e INFLUX_URL=http://influxdb:8086 \
+  -e INFLUX_USER=username \ #remove if no user
+  -e INFLUX_PWD=password \ #remove if no password
+  -e LOCAL_CIDR=192.168.0.0/16 \
+  -e MIKROTIK_ADDR=192.168.0.1 \
+  -e MIKROCOUNT_TIMER=15 \
+  --restart unless-stopped \
+  atajsic/mikrocount
+```
 
-#### docker-compose config
-
-1. On the computer on which you want Mikrocount to run, create a file named `docker-compose.yml`, in a directory named `mikrocount`.
-1. Copy the contents of the file `docker-compose-example.yml` in this repository, and paste them into the newly created `docker-compose.yml` file.
-1. Change the value after `-mikrotikaddr` in the file to the LAN IP address of your Mikrotik router.
-1. In a terminal session, in the `mikrocount` directory that was created run:
-
-    ```shell
-    $ docker-compose up -d --build
-    ...
-    ```
-
-    (note: some setups may require you to run the aforementioned command using `sudo`).
-1. After all images have been downloaded and containers are running, wait a minute or so before proceeding.
-1. Open `http://<ip of machine running mikrocount>:3000` in a browser.  You should be presented with a Grafana login page.
-1. Login using username/password `admin/admin`.  The "Mikrocount Dash" dashboard should be immediately available.
-
-#### Stopping and starting the suite
-
-* To stop everything: `docker-compose stop`
-* To start everything: `docker-compose start`
-* To delete everything except persisted data: `docker-compose down`
-* To start everything again: `docker-compose up -d --build`
-* To delete persisted data: `docker-compose down --volumes`
-
-## Development
-
-In order to contribute to the development of this project, or to fork and make your own changes, you'll need the following:
-
-* [Go](https://golang.org/)
-* [Dep](https://github.com/golang/dep)
-
-To install the required dependencies, run `dep ensure`, or `make deps` while in the `mikrocount` subdirectory.
-
-Using `docker-compose-dev.yml` as a reference is recommended for creating a docker-compose config for your development environment.
+#### docker-compose
+```
+version: "3"
+services:
+  influxdb:
+    image: influxdb
+    volumes:
+      - influxdb:/var/lib/influxdb
+  mikrocount:
+    image: atajsic/mikrocount
+    depends_on:
+      - influxdb
+    environment:
+      - INFLUX_URL=http://influxdb:8086
+      - INFLUX_USER=username
+      - INFLUX_PWD=password
+      - LOCAL_CIDR=192.168.0.0/16
+      - MIKROTIK_ADDR=192.168.0.1
+      - MIKROCOUNT_TIMER=15
+    restart: unless-stopped
+```
 
 ## License
 
 This software is distributed under the MIT License.  See the LICENSE file for more details.
-
-## Donations
-
-Donations are very welcome, and can be made to the following addresses:
-
-* BTC: 1AWHJcUBha35FnuuWat9urRW2FNc4ftztv
-* ETH: 0xAF1Aac4c40446F4C46e55614F14d9b32d712ECBc

@@ -1,33 +1,46 @@
 package main
 
 import (
-	"flag"
 	"fmt"
 	"io/ioutil"
 	"log"
 	"net"
 	"net/http"
+	"os"
 	"strconv"
 	"strings"
 	"time"
 
-	"github.com/influxdata/influxdb/client/v2"
+	client "github.com/influxdata/influxdb1-client/v2"
 )
 
 type entry struct {
-	FromIP net.IP
-	ToIP   net.IP
-	Bytes  uint
+	FromIP  net.IP
+	ToIP    net.IP
+	Packets uint
+	Bytes   uint
+}
+
+func getEnv(env string, def string) string {
+	val, ok := os.LookupEnv(env)
+	if !ok {
+		val = def
+	}
+	return val
 }
 
 func main() {
-	influxDBURL := flag.String("influxurl", "http://influxdb:8086", "InfluxDB Host")
-	localCIDR := flag.String("localcidr", "192.168.0.0/16", "Local CIDR (e.g. 192.168.0.0/16)")
-	mikrotikAddr := flag.String("mikrotikaddr", "", "Mikrotik IP/hostname")
+	influxDBURL := getEnv("INFLUX_URL", "http://influxdb:8086")
+	influxDBUser := getEnv("INFLUX_USER", "")
+	influxDBPass := getEnv("INFLUX_PWD", "")
+	localCIDR := getEnv("LOCAL_CIDR", "192.168.0.0/16")
+	mikrotikAddr := getEnv("MIKROTIK_ADDR", "192.168.0.1")
+	timer, _ := strconv.Atoi(getEnv("MIKROCOUNT_TIMER", "15"))
 
-	flag.Parse()
-
-	conf := client.HTTPConfig{Addr: *influxDBURL}
+	conf := client.HTTPConfig{Addr: influxDBURL}
+	if len(influxDBUser) > 0 {
+		conf = client.HTTPConfig{Addr: influxDBURL, Username: influxDBUser, Password: influxDBPass}
+	}
 	c, _ := client.NewHTTPClient(conf)
 	q := client.NewQuery("CREATE DATABASE mikrocount", "", "")
 	if response, err := c.Query(q); err == nil && response.Error() == nil {
@@ -35,13 +48,13 @@ func main() {
 	}
 	defer c.Close()
 
-	_, ipnet, _ := net.ParseCIDR(*localCIDR)
+	_, ipnet, _ := net.ParseCIDR(localCIDR)
 	dataChan := make(chan []entry)
 
 	for {
 		select {
-		case <-time.After(time.Second * time.Duration(15)):
-			go getData(*mikrotikAddr, dataChan)
+		case <-time.After(time.Second * time.Duration(timer)):
+			go getData(mikrotikAddr, dataChan)
 		case e := <-dataChan:
 			go recordEntries(e, ipnet, c)
 		}
@@ -64,18 +77,19 @@ func getData(mikrotikAddr string, dataChan chan []entry) {
 	}
 
 	lines := strings.Split(string(body), "\n")
-	log.Printf("About to process %d results", len(lines)-1)
 
 	for _, l := range lines {
 		if l == "" {
 			break
 		}
 		cols := strings.Split(l, " ")
-		b, _ := strconv.Atoi(cols[2])
+		packets, _ := strconv.Atoi(cols[2])
+		bytes, _ := strconv.Atoi(cols[3])
 		e := entry{
-			FromIP: net.ParseIP(cols[0]),
-			ToIP:   net.ParseIP(cols[1]),
-			Bytes:  uint(b),
+			FromIP:  net.ParseIP(cols[0]),
+			ToIP:    net.ParseIP(cols[1]),
+			Packets: uint(packets),
+			Bytes:   uint(bytes),
 		}
 		entries = append(entries, e)
 	}
@@ -93,10 +107,10 @@ func recordEntries(entries []entry, ipnet *net.IPNet, c client.Client) {
 		var ip, direction string
 		if ipnet.Contains(e.FromIP) {
 			ip = e.FromIP.String()
-			direction = "Upload"
+			direction = "upload"
 		} else if ipnet.Contains(e.ToIP) {
 			ip = e.ToIP.String()
-			direction = "Download"
+			direction = "download"
 		} else {
 			log.Printf("Weirdness! From: %s :: To: %s", e.FromIP.String(), e.ToIP.String())
 			return
@@ -108,7 +122,8 @@ func recordEntries(entries []entry, ipnet *net.IPNet, c client.Client) {
 		}
 
 		fields := map[string]interface{}{
-			"bytes": e.Bytes,
+			"packets": e.Packets,
+			"bytes":   e.Bytes,
 		}
 		pt, err := client.NewPoint("usage", tags, fields, time.Now())
 		if err != nil {

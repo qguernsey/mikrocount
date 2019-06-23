@@ -1,6 +1,6 @@
 OUT_FILE = mikrocount
 SOURCE_FILE = mikrocount.go
-DOCKER_TAG = "johanmeiring/mikrocount"
+DOCKER_TAG = "atajsic/mikrocount"
 
 .PHONY: deps
 deps:
