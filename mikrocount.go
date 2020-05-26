@@ -99,8 +99,7 @@ func getData(mikrotikAddr string, dataChan chan []entry) {
 
 func recordEntries(entries []entry, ipnet *net.IPNet, c client.Client) {
 	bp, _ := client.NewBatchPoints(client.BatchPointsConfig{
-		Database:  "mikrocount",
-		Precision: "s",
+		Database: "mikrocount",
 	})
 
 	for _, e := range entries {
