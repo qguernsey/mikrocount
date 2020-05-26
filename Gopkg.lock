@@ -3,7 +3,7 @@
 
 [[projects]]
   branch = "master"
-  digest = "1:50708c8fc92aec981df5c446581cf9f90ba9e2a5692118e0ce75d4534aaa14a2"
+  digest = "1:6840912f69458248344a760712272b41faeb22fc623c56424407da452f5869fa"
   name = "github.com/influxdata/influxdb1-client"
   packages = [
     "models",
@@ -11,7 +11,7 @@
     "v2",
   ]
   pruneopts = "UT"
-  revision = "8ff2fc3824fcb533795f9a2f233275f0bb18d6c5"
+  revision = "02f0bf5dbca364fe200ee3f5709c8cc0c9bda0d0"
 
 [solve-meta]
   analyzer-name = "dep"
