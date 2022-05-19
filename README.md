@@ -3,7 +3,7 @@
 
 ## Introduction
 
-Mikrocount is a tool written in go that pulls data from Mikrotik's accounting service, parses it, and stores it into influxdb.
+Mikrocount is a tool written in go that pulls data from Mikrotik's accounting service, parses it, and stores it into InfluxDB2.
 
 ## Getting Started
 ### Mikrotik router
@@ -33,8 +33,9 @@ Notes:
 docker create \
   --name=mikrocount
   -e INFLUX_URL=http://influxdb:8086 \
-  -e INFLUX_USER=username \ #remove if no user
-  -e INFLUX_PWD=password \ #remove if no password
+  -e INFLUX_TOKEN=my-token \ 
+  -e INFLUX_ORG=my-org \ 
+  -e INFLUX_BUCKET=my-bucket \ 
   -e LOCAL_CIDR=192.168.0.0/16 \
   -e MIKROTIK_ADDR=192.168.0.1 \
   -e MIKROCOUNT_TIMER=15 \
@@ -46,18 +47,13 @@ docker create \
 ```
 version: "3"
 services:
-  influxdb:
-    image: influxdb
-    volumes:
-      - influxdb:/var/lib/influxdb
   mikrocount:
     image: atajsic/mikrocount
-    depends_on:
-      - influxdb
     environment:
       - INFLUX_URL=http://influxdb:8086
-      - INFLUX_USER=username
-      - INFLUX_PWD=password
+      - INFLUX_TOKEN=my-token
+      - INFLUX_ORG=my-org
+      - NFLUX_BUCKET=my-bucket
       - LOCAL_CIDR=192.168.0.0/16
       - MIKROTIK_ADDR=192.168.0.1
       - MIKROCOUNT_TIMER=15

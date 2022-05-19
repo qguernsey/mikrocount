@@ -1,10 +1,7 @@
 # build stage
-FROM golang:1.12-alpine AS builder
-RUN apk add --update ca-certificates
-RUN apk add --no-cache git && go get -u github.com/golang/dep/...
+FROM golang:1.18-alpine AS builder
 WORKDIR /go/src/github.com/atajsic/mikrocount
-ADD . ./
-RUN dep ensure
+COPY ./ ./
 RUN go build -o mikrocount
 
 # final stage

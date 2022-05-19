@@ -11,7 +11,8 @@ import (
 	"strings"
 	"time"
 
-	client "github.com/influxdata/influxdb1-client/v2"
+	influxdb2 "github.com/influxdata/influxdb-client-go/v2"
+	"github.com/influxdata/influxdb-client-go/v2/api"
 )
 
 type entry struct {
@@ -31,22 +32,24 @@ func getEnv(env string, def string) string {
 
 func main() {
 	influxDBURL := getEnv("INFLUX_URL", "http://influxdb:8086")
-	influxDBUser := getEnv("INFLUX_USER", "")
-	influxDBPass := getEnv("INFLUX_PWD", "")
+	influxDBtoken := getEnv("INFLUX_TOKEN", "")
+	influxDBorg := getEnv("INFLUX_ORG", "")
+	influxDBbucket := getEnv("INFLUX_BUCKET", "")
+
 	localCIDR := getEnv("LOCAL_CIDR", "192.168.0.0/16")
 	mikrotikAddr := getEnv("MIKROTIK_ADDR", "192.168.0.1")
 	timer, _ := strconv.Atoi(getEnv("MIKROCOUNT_TIMER", "15"))
 
-	conf := client.HTTPConfig{Addr: influxDBURL}
-	if len(influxDBUser) > 0 {
-		conf = client.HTTPConfig{Addr: influxDBURL, Username: influxDBUser, Password: influxDBPass}
-	}
-	c, _ := client.NewHTTPClient(conf)
-	q := client.NewQuery("CREATE DATABASE mikrocount", "", "")
-	if response, err := c.Query(q); err == nil && response.Error() == nil {
-		log.Println(response.Results)
-	}
-	defer c.Close()
+	client := influxdb2.NewClient(influxDBURL, influxDBtoken)
+	writeAPI := client.WriteAPI(influxDBorg, influxDBbucket)
+
+	//error channel
+	errorsCh := writeAPI.Errors()
+	go func() {
+		for err := range errorsCh {
+			log.Printf("Error writing data to InfluxDB: %s\n", err.Error())
+		}
+	}()
 
 	_, ipnet, _ := net.ParseCIDR(localCIDR)
 	dataChan := make(chan []entry)
@@ -56,7 +59,7 @@ func main() {
 		case <-time.After(time.Second * time.Duration(timer)):
 			go getData(mikrotikAddr, dataChan)
 		case e := <-dataChan:
-			go recordEntries(e, ipnet, c)
+			go recordEntries(e, ipnet, writeAPI)
 		}
 	}
 }
@@ -97,10 +100,7 @@ func getData(mikrotikAddr string, dataChan chan []entry) {
 	dataChan <- entries
 }
 
-func recordEntries(entries []entry, ipnet *net.IPNet, c client.Client) {
-	bp, _ := client.NewBatchPoints(client.BatchPointsConfig{
-		Database: "mikrocount",
-	})
+func recordEntries(entries []entry, ipnet *net.IPNet, w api.WriteAPI) {
 
 	for _, e := range entries {
 		var ip, direction string
@@ -124,15 +124,8 @@ func recordEntries(entries []entry, ipnet *net.IPNet, c client.Client) {
 			"bytes":   e.Bytes,
 			"packets": e.Packets,
 		}
-		pt, err := client.NewPoint("usage", tags, fields, time.Now())
-		if err != nil {
-			log.Println("Error: ", err.Error())
-		}
-		bp.AddPoint(pt)
-	}
 
-	err := c.Write(bp)
-	if err != nil {
-		log.Println("Error: ", err.Error())
+		p := influxdb2.NewPoint("mikrocount", tags, fields, time.Now())
+		w.WritePoint(p)
 	}
 }
