@@ -53,7 +53,7 @@ services:
       - INFLUX_URL=http://influxdb:8086
       - INFLUX_TOKEN=my-token
       - INFLUX_ORG=my-org
-      - NFLUX_BUCKET=my-bucket
+      - INFLUX_BUCKET=my-bucket
       - LOCAL_CIDR=192.168.0.0/16
       - MIKROTIK_ADDR=192.168.0.1
       - MIKROCOUNT_TIMER=15
